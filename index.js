@@ -1,5 +1,6 @@
 import { ChatGPTAPI } from 'chatgpt'
 import * as dotenv from 'dotenv'
+import fetch from 'node-fetch'
 import { Client, Events, GatewayIntentBits } from 'discord.js'
 import { differenceInMinutes } from 'date-fns'
 import { connectToDb, saveChat, getLatest, isInWhitelist } from './dbHandler.js'
@@ -17,6 +18,7 @@ const getChannelClient = async (channelId, reset = false) => {
 
   const client = new ChatGPTAPI({
     apiKey: process.env.OPENAI_API_KEY,
+    fetch: fetch,
   })
 
   clientsMap.set(channelId, client)
