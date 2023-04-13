@@ -25,6 +25,7 @@ const WhitelistSchema = new Schema({
   },
 });
 
+const whitelistDoc = new mongoose.model('whitelist', WhitelistSchema, 'whitelist');
 
 export const connectToDb = async () => {
   await mongoose.connect(process.env.MONGO_URI, {
@@ -46,6 +47,14 @@ export const getLatest = async (channelId) => {
 }
 
 export const isInWhitelist = async (userId) => {
-  const whitelistDoc = new mongoose.model('whitelist', WhitelistSchema, 'whitelist');
   return whitelistDoc.exists({ userId });
+}
+
+export const addToWhitelist = async (userId) => {
+  // Make sure user is not already in whitelist
+  if (await isInWhitelist(userId)) {
+    return;
+  }
+  const newWhitelist = new whitelistDoc({ userId });
+  await newWhitelist.save();
 }

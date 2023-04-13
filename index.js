@@ -1,27 +1,22 @@
 import { ChatGPTAPI } from 'chatgpt'
 import * as dotenv from 'dotenv'
 import fetch from 'node-fetch'
-import { Client, Events, GatewayIntentBits } from 'discord.js'
+import { Client, Events, GatewayIntentBits, SlashCommandBuilder } from 'discord.js'
 import { differenceInMinutes } from 'date-fns'
-import { connectToDb, saveChat, getLatest, isInWhitelist } from './dbHandler.js'
+import { connectToDb, saveChat, getLatest, isInWhitelist, addToWhitelist } from './dbHandler.js'
 
 dotenv.config();
 connectToDb();
 const clientsMap = new Map();
 
 const getChannelClient = async (channelId, reset = false) => {
-  if (reset) {
-    clientsMap.delete(channelId)
-  }
-
-  if (clientsMap.has(channelId)) return clientsMap.get(channelId)
+  if (!reset && clientsMap.has(channelId)) return clientsMap.get(channelId)
 
   const client = new ChatGPTAPI({
     apiKey: process.env.OPENAI_API_KEY,
     fetch: fetch,
   })
 
-  clientsMap.set(channelId, client)
   const res = await client.sendMessage(process.env.INITIAL_PROMPT)
   console.log('Initialized channel', channelId, 'response text', res.text)
 
@@ -32,6 +27,8 @@ const getChannelClient = async (channelId, reset = false) => {
     content: process.env.INITIAL_PROMPT,
     chatGptId: res.id,
   })
+
+  clientsMap.set(channelId, client)
 
   return client
 }
@@ -52,9 +49,38 @@ const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBit
 
 // When the client is ready, run this code (only once)
 // We use 'c' for the event parameter to keep it separate from the already defined 'client'
-client.once(Events.ClientReady, c => {
-  console.log(`Ready! Logged in as ${c.user.tag}`);
+client.once(Events.ClientReady, async (client) => {
+  console.log(`Ready! Logged in as ${client.user.tag}`);
+  const whitelistCommand = new SlashCommandBuilder()
+    .setName('whitelist')
+    .setDescription('Whitelist a user (owner only)')
+    .addStringOption(option =>
+      option.setName('user_id')
+        .setDescription('User ID')
+        .setRequired(true)
+    );
+
+  const data = await client.application?.commands.create(whitelistCommand);
+  console.log(`Created command ${data?.name}`)
 });
+
+client.on(Events.InteractionCreate, async interaction => {
+  if (!interaction.isChatInputCommand()) return
+
+  if (interaction.user.id !== process.env.OWNER_ID) {
+    await interaction.reply('You are not authorized to use this command')
+    return
+  }
+
+  if (interaction.commandName === 'whitelist') {
+    const userId = interaction.options.getString('user_id')
+    await addToWhitelist(userId);
+    await interaction.reply({
+      content: `Whitelisted user ${userId}`,
+      ephemeral: true,
+    })
+  }
+})
 
 client.on(Events.MessageCreate, async message => {
   if (message.author.bot || !(await isInWhitelist(message.author.id)) || !message.mentions.has(client.user)) {
