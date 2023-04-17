@@ -59,9 +59,9 @@ client.on(Events.MessageCreate, async message => {
 
   message.channel.sendTyping()
   let api = await getAPI(message.channelId)
-  const username = process.env.OWNER_ID === message.author.id ? process.env.OWNER_USERNAME : message.member.nickname
+  const username = process.env.OWNER_ID === message.author.id ? process.env.OWNER_USERNAME : message.member.displayName
   const chatGptResponse = await api.sendMessage(messageContent, {
-    name: username
+    name: username || 'Anonymous',
   });
 
   message.reply({
@@ -73,7 +73,6 @@ client.on(Events.MessageCreate, async message => {
 });
 
 client
-  .on("debug", console.log)
   .on("warn", console.log)
 
 // Log in to Discord with your client's token
