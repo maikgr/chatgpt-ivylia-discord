@@ -68,12 +68,26 @@ client.on(Events.MessageCreate, async message => {
     name: sanitizeUsername(username) || 'Anonymous',
   });
 
-  message.reply({
-    content: chatGptResponse.text,
-    allowedMentions: {
-      repliedUser: false,
-    },
-  })
+  // Discord has a 2000 character limit for messages
+  if (chatGptResponse.text.length > 2000) {
+    const chunks = chatGptResponse.text.match(/.{1,2000}/g);
+    for (const chunk of chunks) {
+      message.reply({
+        content: chunk,
+        allowedMentions: {
+          repliedUser: false,
+        },
+      })
+    }
+  }
+  else {
+    message.reply({
+      content: chatGptResponse.text,
+      allowedMentions: {
+        repliedUser: false,
+      },
+    })
+  }
 });
 
 client
