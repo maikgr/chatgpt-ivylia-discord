@@ -1,48 +1,10 @@
-import { ChatGPTAPI } from 'chatgpt'
 import * as dotenv from 'dotenv'
-import fetch from 'node-fetch'
 import { Client, Events, GatewayIntentBits, SlashCommandBuilder } from 'discord.js'
-import { differenceInMinutes } from 'date-fns'
-import { connectToDb, saveChat, getLatest, isInWhitelist, addToWhitelist } from './dbHandler.js'
+import { connectToDb, isInWhitelist, addToWhitelist } from './dbHandler.js'
+import { getAPI } from './chatApi.js'
 
 dotenv.config();
 connectToDb();
-const clientsMap = new Map();
-
-const getChannelClient = async (channelId, reset = false) => {
-  if (!reset && clientsMap.has(channelId)) return clientsMap.get(channelId)
-
-  const client = new ChatGPTAPI({
-    apiKey: process.env.OPENAI_API_KEY,
-    fetch: fetch,
-  })
-
-  const res = await client.sendMessage(process.env.INITIAL_PROMPT)
-  console.log('Initialized channel', channelId, 'response text', res.text)
-
-  await saveChat(channelId, {
-    authorId: process.env.OWNER_ID,
-    authorUsername: process.env.OWNER_ID,
-    messageId: null,
-    content: process.env.INITIAL_PROMPT,
-    chatGptId: res.id,
-  })
-
-  clientsMap.set(channelId, client)
-
-  return client
-}
-
-async function sendChatGpt(api, content, parentId) {
-  const res = await api.sendMessage(content, {
-    parentMessageId: parentId,
-  })
-
-  return {
-    chatGptId: res.id,
-    content: res.text,
-  }
-}
 
 // Create a new client instance
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildMessageTyping, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildPresences] });
@@ -68,7 +30,10 @@ client.on(Events.InteractionCreate, async interaction => {
   if (!interaction.isChatInputCommand()) return
 
   if (interaction.user.id !== process.env.OWNER_ID) {
-    await interaction.reply('You are not authorized to use this command')
+    await interaction.reply({
+      content: 'Sorry, you are not authorized to use this command',
+      ephemeral: true,
+    })
     return
   }
 
@@ -93,24 +58,14 @@ client.on(Events.MessageCreate, async message => {
     .trim()
 
   message.channel.sendTyping()
-  let api = await getChannelClient(message.channelId)
-  const latest = await getLatest(message.channelId)
-  if (latest && differenceInMinutes(new Date(), latest.timestamp) > process.env.SESSION_EXPIRY_MINUTES) {
-    api = await getChannelClient(message.channelId, true)
-  }
-
-  const chatParentId = latest ? latest.chatGptId : null
-  const chatGptResponse = await sendChatGpt(api, messageContent, chatParentId)
-  await saveChat(message.channelId, {
-    authorId: message.author.id,
-    authorUsername: message.author.username,
-    messageId: message.id,
-    content: messageContent,
-    chatGptId: chatGptResponse.chatGptId,
-  })
+  let api = await getAPI(message.channelId)
+  const username = process.env.OWNER_ID === message.author.id ? process.env.OWNER_USERNAME : message.member.nickname
+  const chatGptResponse = await api.sendMessage(messageContent, {
+    name: username
+  });
 
   message.reply({
-    content: chatGptResponse.content,
+    content: chatGptResponse.text,
     allowedMentions: {
       repliedUser: false,
     },
