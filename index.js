@@ -47,6 +47,10 @@ client.on(Events.InteractionCreate, async interaction => {
   }
 })
 
+const sanitizeUsername = (username) => {
+  return username.replace(/[^a-zA-Z0-9]/g, '').replace(/\s/g, '').slice(0, 64);
+}
+
 client.on(Events.MessageCreate, async message => {
   if (message.author.bot || !(await isInWhitelist(message.author.id)) || !message.mentions.has(client.user)) {
     return
@@ -59,9 +63,9 @@ client.on(Events.MessageCreate, async message => {
 
   message.channel.sendTyping()
   let api = await getAPI(message.channelId)
-  const username = process.env.OWNER_ID === message.author.id ? process.env.OWNER_USERNAME : message.member.displayName
+  const username = process.env.OWNER_ID === message.author.id ? process.env.OWNER_USERNAME : message.member.displayName;
   const chatGptResponse = await api.sendMessage(messageContent, {
-    name: username || 'Anonymous',
+    name: sanitizeUsername(username) || 'Anonymous',
   });
 
   message.reply({
