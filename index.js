@@ -70,8 +70,10 @@ client.on(Events.MessageCreate, async message => {
 
   // Discord has a 2000 character limit for messages
   if (chatGptResponse.text.length > 2000) {
+    console.log("Message too long, splitting into chunks, original response", chatGptResponse);
     const chunks = chatGptResponse.text.match(/.{1,2000}/g);
     for (const chunk of chunks) {
+      console.log(chunk);
       message.reply({
         content: chunk,
         allowedMentions: {
