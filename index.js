@@ -2,6 +2,7 @@ import * as dotenv from 'dotenv'
 import { Client, Events, GatewayIntentBits, SlashCommandBuilder } from 'discord.js'
 import { connectToDb, isInWhitelist, addToWhitelist } from './dbHandler.js'
 import { getAPI } from './chatApi.js'
+import { getRandomIvyliaResponse } from './fixedResponses.js'
 
 dotenv.config();
 connectToDb();
@@ -162,7 +163,13 @@ client.on(Events.MessageCreate, async message => {
     .replace(`<@${client.user.id}>`, '')
     .trim()
 
-  message.channel.sendTyping()
+  const currentMessage = await message.reply({
+    content: getRandomIvyliaResponse(),
+    allowedMentions: {
+      repliedUser: false,
+    }
+  });
+  message.channel.sendTyping();
   let api = await getAPI(message.channelId)
   const username = process.env.OWNER_ID === message.author.id ? process.env.OWNER_USERNAME : message.member.displayName;
   let responseText = '';
@@ -202,7 +209,7 @@ client.on(Events.MessageCreate, async message => {
     }
   }
   else {
-    message.reply({
+    currentMessage.edit({
       content: responseText,
       allowedMentions: {
         repliedUser: false,
