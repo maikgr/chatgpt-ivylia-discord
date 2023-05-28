@@ -153,40 +153,19 @@ const splitRegularString = (str) => {
   return chunks;
 }
 
-client.on(Events.MessageCreate, async message => {
-  if (message.author.bot || !(await isInWhitelist(message.author.id)) || !message.mentions.has(client.user)) {
-    return
-  }
+const raceResponse = {
+  awaiting: "awaiting",
+  responded: "responded"
+}
 
-  const messageContent = message.content
-    .replace(`<@!${client.user.id}>`, '')
-    .replace(`<@${client.user.id}>`, '')
-    .trim()
-
-  const currentMessage = await message.reply({
-    content: getRandomIvyliaResponse(),
-    allowedMentions: {
-      repliedUser: false,
-    }
-  });
-  message.channel.sendTyping();
+const sendIvyliaGptResponse = async (message, messageContent) => {
   let api = await getAPI(message.channelId)
   const username = process.env.OWNER_ID === message.author.id ? process.env.OWNER_USERNAME : message.member.displayName;
-  let responseText = '';
-  try {
-    const chatGptResponse = await api.sendMessage(messageContent, {
-      name: sanitizeUsername(username) || 'Anonymous',
-    });
-    responseText = chatGptResponse.text;
-  }
-  catch (e) {
-    if (e.error.message) {
-      responseText = 'Sorry, unable to generate a response. Please try again later. Error: ```' + e.error.message + '```';
-    }
-    else {
-      throw e;
-    }
-  }
+  const chatGptResponse = await api.sendMessage(messageContent, {
+    name: sanitizeUsername(username) || 'Anonymous',
+  });
+  let responseText = chatGptResponse.text;
+  let messages = [responseText]
 
   // Discord has a 2000 character limit for messages
   if (responseText.length > 2000) {
@@ -197,25 +176,107 @@ client.on(Events.MessageCreate, async message => {
     else {
       chunks = splitRegularString(responseText);
     }
-
+    messages = [];
     for (const chunk of chunks) {
-      console.log(chunk);
+      messages.push(chunk);
+    }
+  }
+  return {
+    status: raceResponse.responded,
+    messages: messages,
+  };
+}
+
+client.on(Events.MessageCreate, async message => {
+  if (message.author.bot || !(await isInWhitelist(message.author.id)) || !message.mentions.has(client.user)) {
+    return
+  }
+
+  const messageContent = message.content
+    .replace(`<@!${client.user.id}>`, '')
+    .replace(`<@${client.user.id}>`, '')
+    .trim()
+
+  const waitResponsePromise = new Promise((resolve) => {
+    setTimeout(() => {
+      resolve({
+        status: raceResponse.awaiting,
+        messages: [getRandomIvyliaResponse()],
+      })
+    }, 10000);
+  });
+
+  const resultResponsePromise = new Promise(async (resolve) => {
+    const result = await sendIvyliaGptResponse(message, messageContent)
+    resolve(result)
+  });
+
+  message.channel.sendTyping();
+
+  let lastMessageResult = raceResponse.awaiting;
+  Promise.race([resultResponsePromise, waitResponsePromise])
+    .then(result => {
+      if (result?.status === raceResponse.awaiting) {
+        lastMessageResult = raceResponse.awaiting;
+        message.reply({
+          content: result.messages[0],
+          allowedMentions: {
+            repliedUser: false,
+          },
+        })
+        message.channel.sendTyping();
+        return resultResponsePromise
+      }
+      else if (result?.status === raceResponse.responded) {
+        for (const contentMessage of result.messages) {
+          message.reply({
+            content: contentMessage,
+            allowedMentions: {
+              repliedUser: false,
+            },
+          })
+        }
+        lastMessageResult = raceResponse.responded;
+      }
+      return Promise.resolve()
+    })
+    .then(() => {
+      if (lastMessageResult === raceResponse.awaiting) { // to differentiate between empty promise and responded promise
+        return resultResponsePromise
+      }
+      return Promise.resolve()
+    })
+    .then((result) => {
+      if (result?.status === raceResponse.responded) {
+        for (const contentMessage of result.messages) {
+          message.reply({
+            content: contentMessage,
+            allowedMentions: {
+              repliedUser: false,
+            },
+          })
+        }
+        lastMessageResult = raceResponse.responded;
+      }
+    })
+    .catch(e => {
+      let errorText = 'Sorry, unable to generate a response. Please try again later.';
+      if (e.error?.message) {
+        errorText += '```' + e.error.message + '```';
+      }
+
       message.reply({
-        content: chunk,
+        content: errorText,
         allowedMentions: {
           repliedUser: false,
         },
       })
-    }
-  }
-  else {
-    currentMessage.edit({
-      content: responseText,
-      allowedMentions: {
-        repliedUser: false,
-      },
+
+      throw e;
     })
-  }
+    .finally(() => {
+      lastMessageResult = raceResponse.awaiting;
+    })
 });
 
 client
