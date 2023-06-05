@@ -203,7 +203,7 @@ client.on(Events.MessageCreate, async message => {
         status: raceResponse.awaiting,
         messages: [getRandomIvyliaResponse()],
       })
-    }, 10000);
+    }, process.env.WAIT_TIMER || 15000);
   });
 
   const resultResponsePromise = new Promise(async (resolve) => {
