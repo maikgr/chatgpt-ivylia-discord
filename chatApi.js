@@ -64,6 +64,9 @@ export const getAPI = async (channelId) => {
   const client = new IvyliaAPI({
     apiKey: process.env.OPENAI_API_KEY,
     fetch: fetch,
+    completionParams: {
+      model: 'gpt-4-0613',
+    }
   })
 
   clientsMap.set(channelId, client)
