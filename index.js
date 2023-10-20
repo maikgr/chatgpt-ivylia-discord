@@ -1,6 +1,6 @@
 import * as dotenv from 'dotenv'
 import { Client, Events, GatewayIntentBits, SlashCommandBuilder } from 'discord.js'
-import { connectToDb, isInWhitelist, addToWhitelist } from './dbHandler.js'
+import { connectToDb, isInWhitelist, addToWhitelist, isDatabaseInitialized } from './dbHandler.js'
 import { getAPI } from './chatApi.js'
 import { getRandomIvyliaResponse } from './fixedResponses.js'
 
@@ -23,8 +23,13 @@ client.once(Events.ClientReady, async (client) => {
         .setRequired(true)
     );
 
-  const data = await client.application?.commands.create(whitelistCommand);
-  console.log(`Created command ${data?.name}`)
+  if (isDatabaseInitialized()) {
+    const data = await client.application?.commands.create(whitelistCommand);
+    console.log(`Created command ${data?.name}`);
+  }
+  else {
+    console.log('Database not initialized, whitelist command is disabled...');
+  }
 });
 
 client.on(Events.InteractionCreate, async interaction => {
@@ -38,7 +43,7 @@ client.on(Events.InteractionCreate, async interaction => {
     return
   }
 
-  if (interaction.commandName === 'whitelist') {
+  if (interaction.commandName === 'whitelist' && isDatabaseInitialized()) {
     const userId = interaction.options.getString('user_id')
     await addToWhitelist(userId);
     await interaction.reply({
