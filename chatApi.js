@@ -65,7 +65,7 @@ export const getAPI = async (channelId) => {
     apiKey: process.env.OPENAI_API_KEY,
     fetch: fetch,
     completionParams: {
-      model: 'gpt-4-0613',
+      model: 'gpt-4-1106-preview',
     }
   })
 

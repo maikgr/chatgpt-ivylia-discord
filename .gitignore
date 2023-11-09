@@ -142,7 +142,6 @@ dist
 .svelte-kit
 
 .env
-.env.*
 .aws
 .vscode
 # End of https://www.toptal.com/developers/gitignore/api/node
